@@ -1,0 +1,14 @@
+{
+  "name": "link-audit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Crawls a site's sitemap, finds broken links, screenshots them on desktop and mobile, and writes an HTML report.",
+  "scripts": {
+    "audit": "node audit.mjs"
+  },
+  "dependencies": {
+    "node-html-parser": "6.1.13",
+    "playwright": "1.56.0"
+  }
+}
