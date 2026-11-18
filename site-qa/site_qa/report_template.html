@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site QA report</title>
+<style>
+:root{
+  --bg:#f4f5f6; --panel:#ffffff; --ink:#15191f; --muted:#5d6672; --line:#dfe2e6;
+  --high:#c42f1c; --medium:#c77c00; --low:#2f64a3; --info:#7a8490; --ok:#1d7a52;
+  --del:#fde3df; --ins:#dcf3e6; --focus:#2f64a3;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#111418; --panel:#1a1f25; --ink:#e8ebee; --muted:#9aa3ad; --line:#2c333b;
+    --high:#ff6b57; --medium:#f0a73a; --low:#6ea2e0; --info:#8d96a0; --ok:#4cc38a;
+    --del:#4a2320; --ins:#163d2b; --focus:#6ea2e0; color-scheme: dark; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--low)}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+header{padding:28px 32px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{margin:0 0 6px;font-size:22px;letter-spacing:-.01em}
+.src{display:flex;flex-wrap:wrap;gap:6px 22px;color:var(--muted);font-size:13px}
+.src b{color:var(--ink);font-weight:600}
+.src a{word-break:break-all}
+.notes{margin:10px 0 0;color:var(--muted);font-size:13px}
+.score{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);margin:22px 32px 0;border:1px solid var(--line)}
+.score button{all:unset;cursor:pointer;background:var(--panel);padding:16px 18px}
+.score button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.score .n{font-size:34px;font-weight:700;line-height:1}
+.score .l{color:var(--muted);font-size:13px;margin-top:6px;text-transform:capitalize}
+.score button[aria-pressed=true]{box-shadow:inset 0 -3px 0 currentColor}
+.sev-high{color:var(--high)}.sev-medium{color:var(--medium)}.sev-low{color:var(--low)}.sev-info{color:var(--info)}
+nav.tabs{display:flex;gap:4px;margin:24px 32px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs button{all:unset;cursor:pointer;padding:10px 14px;color:var(--muted);font-weight:600;white-space:nowrap}
+nav.tabs button[aria-selected=true]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+nav.tabs button:focus-visible{outline:2px solid var(--focus)}
+main{padding:20px 32px 60px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:20px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+input[type=search]{font:inherit;padding:6px 10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;min-width:220px}
+.tbl-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.sev{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;text-transform:capitalize;white-space:nowrap}
+.sev::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.cat{color:var(--muted);font-size:12.5px;white-space:nowrap}
+.cmp{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:13px;margin-top:4px}
+.cmp span:nth-child(odd){color:var(--muted)}
+.sw{display:inline-block;width:12px;height:12px;border:1px solid var(--line);vertical-align:-1px;margin-right:4px}
+del{background:var(--del);text-decoration:line-through}
+ins{background:var(--ins);text-decoration:none}
+.empty{padding:28px;color:var(--muted);background:var(--panel);border:1px solid var(--line)}
+.sec{background:var(--panel);border:1px solid var(--line);margin-bottom:22px}
+.sec-h{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;padding:12px 16px;border-bottom:1px solid var(--line)}
+.sec-h h3{margin:0;font-size:16px}
+.sec-h .meta{color:var(--muted);font-size:13px}
+.sim{font-weight:700}
+.viewer{padding:14px 16px}
+.modes{display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap}
+.side{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.side figure{margin:0}
+.side figcaption{font-size:12px;color:var(--muted);margin-bottom:4px}
+.side img,.onion img{width:100%;display:block;border:1px solid var(--line)}
+.onion{position:relative}
+.onion img.top{position:absolute;inset:0;height:auto}
+.onion input{width:220px}
+@media (max-width:760px){
+  header,main{padding-left:16px;padding-right:16px}.score,nav.tabs{margin-left:16px;margin-right:16px}
+  .score{grid-template-columns:repeat(2,1fr)}.side{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Site QA report</h1>
+  <div class="src" id="src"></div>
+  <p class="notes" id="notes"></p>
+</header>
+<div class="score" id="score" role="group" aria-label="Filter by severity"></div>
+<nav class="tabs" role="tablist" id="tabs"></nav>
+<main id="main"></main>
+<script>
+const D = /*__DATA__*/null;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const SEVS = ["high","medium","low","info"];
+const state = {tab:"issues", sev:null, cat:null, q:""};
+
+document.getElementById("src").innerHTML =
+  `<span><b>Live</b> <a href="${esc(D.site)}" target="_blank" rel="noopener">${esc(D.site)}</a></span>` +
+  (D.figma ? `<span><b>Figma</b> <a href="${esc(D.figma)}" target="_blank" rel="noopener">open layout</a></span>` : "") +
+  (D.figma_mobile ? `<span><b>Figma mobile</b> <a href="${esc(D.figma_mobile)}" target="_blank" rel="noopener">open layout</a></span>` : "") +
+  (D.doc ? `<span><b>Copy</b> <a href="${esc(D.doc)}" target="_blank" rel="noopener">open doc</a></span>` : "") +
+  `<span>${esc(D.date)}</span>`;
+document.getElementById("notes").textContent = (D.notes || []).join(" · ");
+
+function renderScore(){
+  document.getElementById("score").innerHTML = SEVS.map(s => {
+    const n = D.issues.filter(i => i.severity === s).length;
+    return `<button class="sev-${s}" data-sev="${s}" aria-pressed="${state.sev===s}"><div class="n">${n}</div><div class="l">${s}</div></button>`;
+  }).join("");
+  document.querySelectorAll("#score button").forEach(b => b.onclick = () => {
+    state.sev = state.sev === b.dataset.sev ? null : b.dataset.sev; state.tab = "issues"; render();
+  });
+}
+
+const TABS = [["issues","Issues"],["sections","Sections vs Figma"],["copy","Copy vs doc"],["links","Links checked"]];
+function renderTabs(){
+  document.getElementById("tabs").innerHTML = TABS.map(([k,l]) =>
+    `<button role="tab" data-t="${k}" aria-selected="${state.tab===k}">${l}</button>`).join("");
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { state.tab = b.dataset.t; render(); });
+}
+
+function issueRow(i){
+  const cmp = [];
+  if (i.text) cmp.push(`<span>Element</span><span>${esc(i.text)}</span>`);
+  if (i.diff) cmp.push(`<span>Diff</span><span>${i.diff}</span>`);
+  else {
+    if (i.expected) cmp.push(`<span>Expected</span><span>${i.swatch ? `<i class="sw" style="background:${esc(i.swatch[0])}"></i>` : ""}${esc(i.expected)}</span>`);
+    if (i.actual) cmp.push(`<span>Live</span><span>${i.swatch ? `<i class="sw" style="background:${esc(i.swatch[1])}"></i>` : ""}${esc(i.actual)}</span>`);
+  }
+  if (i.url) cmp.push(`<span>URL</span><span class="mono"><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.url)}</a></span>`);
+  if (i.src) cmp.push(`<span>File</span><span class="mono">${esc(i.src)}</span>`);
+  return `<tr><td><span class="sev sev-${i.severity}">${i.severity}</span></td>
+    <td class="cat">${esc(D.categories[i.category])}</td>
+    <td><div>${esc(i.title)}</div>${cmp.length ? `<div class="cmp">${cmp.join("")}</div>` : ""}</td>
+    <td class="cat">${esc(i.where)}</td></tr>`;
+}
+
+function renderIssues(m){
+  const cats = Object.entries(D.categories);
+  const list = D.issues.filter(i => (!state.sev || i.severity === state.sev) && (!state.cat || i.category === state.cat) &&
+    (!state.q || JSON.stringify(i).toLowerCase().includes(state.q.toLowerCase())));
+  m.innerHTML = `<div class="bar">
+      <button class="chip" data-c="" aria-pressed="${!state.cat}">All areas</button>
+      ${cats.map(([k,l]) => `<button class="chip" data-c="${k}" aria-pressed="${state.cat===k}">${l} (${D.issues.filter(i=>i.category===k && (!state.sev||i.severity===state.sev)).length})</button>`).join("")}
+      <input type="search" placeholder="Search issues" aria-label="Search issues" value="${esc(state.q)}">
+    </div>` + (list.length ? `<div class="tbl-wrap"><table><thead><tr><th>Severity</th><th>Area</th><th>Issue</th><th>Where</th></tr></thead>
+      <tbody>${list.map(issueRow).join("")}</tbody></table></div>` : `<div class="empty">No issues match these filters.</div>`);
+  m.querySelectorAll(".chip").forEach(b => b.onclick = () => { state.cat = b.dataset.c || null; render(); });
+  const s = m.querySelector("input"); s.oninput = () => { state.q = s.value; renderIssuesKeepFocus(m); };
+}
+function renderIssuesKeepFocus(m){ const pos = m.querySelector("input").selectionStart; renderIssues(m); const s = m.querySelector("input"); s.focus(); s.setSelectionRange(pos,pos); }
+
+function renderSections(m){
+  const out = [];
+  for (const v of D.views){
+    if (!v.sections.length){
+      out.push(`<div class="sec"><div class="sec-h"><h3>${esc(v.tag)} · ${v.width}px</h3><span class="meta">No Figma frame given for this view — live capture only.</span></div>
+        ${v.live_full ? `<div class="viewer"><img src="${v.live_full}" alt="Live ${esc(v.tag)} capture" style="max-width:100%;border:1px solid var(--line)"></div>` : ""}</div>`);
+      continue;
+    }
+    v.sections.forEach((s, k) => {
+      const id = `${v.tag}-${k}`;
+      const simCls = s.similarity == null ? "" : s.similarity < 55 ? "sev-high" : s.similarity < 70 ? "sev-medium" : "sev-ok";
+      out.push(`<div class="sec"><div class="sec-h"><h3>${esc(v.tag)} · ${esc(s.name)}</h3>
+        <span class="meta">Figma ${s.figma_h}px · Live ${s.live_h ?? "—"}px</span>
+        ${s.similarity != null ? `<span class="meta">Visual match <span class="sim ${simCls}" style="${simCls==='sev-ok'?'color:var(--ok)':''}">${s.similarity}%</span></span>` : ""}</div>
+        ${s.live_img ? `<div class="viewer" data-id="${id}">
+          <div class="modes"><button class="chip" data-m="side" aria-pressed="true">Side by side</button>
+          <button class="chip" data-m="onion" aria-pressed="false">Overlay</button></div>
+          <div class="side"><figure><figcaption>Figma</figcaption>${s.figma_img ? `<img src="${s.figma_img}" alt="Figma ${esc(s.name)}">` : "<div class='empty'>No render</div>"}</figure>
+          <figure><figcaption>Live</figcaption><img src="${s.live_img}" alt="Live ${esc(s.name)}"></figure></div>
+          <div class="onion" hidden><label class="meta">Figma opacity <input type="range" min="0" max="100" value="50"></label>
+          <div style="position:relative;margin-top:8px"><img src="${s.live_img}" alt="Live ${esc(s.name)}">${s.figma_img ? `<img class="top" src="${s.figma_img}" alt="" style="opacity:.5">` : ""}</div></div>
+        </div>` : `<div class="viewer meta">This section's content wasn't found on the live page.</div>`}</div>`);
+    });
+  }
+  m.innerHTML = out.join("");
+  m.querySelectorAll(".viewer[data-id]").forEach(vw => {
+    const side = vw.querySelector(".side"), onion = vw.querySelector(".onion");
+    vw.querySelectorAll("[data-m]").forEach(b => b.onclick = () => {
+      const o = b.dataset.m === "onion"; side.hidden = o; onion.hidden = !o;
+      vw.querySelectorAll("[data-m]").forEach(x => x.setAttribute("aria-pressed", x === b));
+    });
+    const r = vw.querySelector("input[type=range]"), top = vw.querySelector("img.top");
+    if (r && top) r.oninput = () => top.style.opacity = r.value / 100;
+  });
+}
+
+function renderCopy(m){
+  if (!D.copy_rows.length){ m.innerHTML = `<div class="empty">No copy doc was given for this run.</div>`; return; }
+  const lbl = {ok:["OK","ok"],punctuation:["Punctuation","low"],diff:["Different","medium"],missing:["Missing","high"]};
+  m.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Status</th><th>Copy doc</th><th>Live page</th></tr></thead><tbody>` +
+    D.copy_rows.map(r => `<tr><td><span class="sev" style="color:var(--${lbl[r.status][1]})">${lbl[r.status][0]}</span></td>
+      <td>${esc(r.doc)}</td><td>${esc(r.live) || '<span class="cat">not found</span>'}</td></tr>`).join("") + `</tbody></table></div>`;
+}
+
+function renderLinks(m){
+  if (!D.links.length){ m.innerHTML = `<div class="empty">No external links found.</div>`; return; }
+  m.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Status</th><th>URL</th><th>Used by</th></tr></thead><tbody>` +
+    D.links.map(l => { const ok = typeof l.status === "number" && l.status < 400;
+      return `<tr><td><span class="sev" style="color:var(--${ok ? "ok" : (l.status===999||l.status===429 ? "info" : "high")})">${esc(l.status)}</span></td>
+      <td class="mono"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>${l.final && l.final !== l.url ? `<div class="cat">→ ${esc(l.final)}</div>` : ""}</td>
+      <td>${esc(l.labels)}</td></tr>`; }).join("") + `</tbody></table></div>`;
+}
+
+function render(){
+  renderScore(); renderTabs();
+  const m = document.getElementById("main");
+  ({issues:renderIssues, sections:renderSections, copy:renderCopy, links:renderLinks})[state.tab](m);
+}
+render();
+</script>
+</body>
+</html>
