@@ -6,208 +6,643 @@
 <title>Site QA report</title>
 <style>
 :root{
-  --bg:#f4f5f6; --panel:#ffffff; --ink:#15191f; --muted:#5d6672; --line:#dfe2e6;
-  --high:#c42f1c; --medium:#c77c00; --low:#2f64a3; --info:#7a8490; --ok:#1d7a52;
-  --del:#fde3df; --ins:#dcf3e6; --focus:#2f64a3;
-  color-scheme: light;
+  --bg:#eef0f2; --panel:#ffffff; --sunk:#f6f7f8; --ink:#14181e; --muted:#5b6470; --line:#dde1e5;
+  --high:#c8321f; --medium:#b87200; --low:#2d62a3; --info:#77818c;
+  --solved:#17805a; --confirm:#7448c2; --wontfix:#8a939c; --open:#14181e;
+  --del:#fde1dc; --ins:#d7f2e2; --focus:#2d62a3; --pin-ring:#fff;
+  color-scheme:light;
 }
-@media (prefers-color-scheme: dark){
-  :root{ --bg:#111418; --panel:#1a1f25; --ink:#e8ebee; --muted:#9aa3ad; --line:#2c333b;
-    --high:#ff6b57; --medium:#f0a73a; --low:#6ea2e0; --info:#8d96a0; --ok:#4cc38a;
-    --del:#4a2320; --ins:#163d2b; --focus:#6ea2e0; color-scheme: dark; }
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#0f1216; --panel:#181c22; --sunk:#12161b; --ink:#e7eaee; --muted:#9aa3ad; --line:#2a3139;
+    --high:#ff6a55; --medium:#f2a83b; --low:#6fa3e2; --info:#8f99a3;
+    --solved:#46c48c; --confirm:#a888f0; --wontfix:#7d868f; --open:#e7eaee;
+    --del:#4b221d; --ins:#153b29; --focus:#6fa3e2; --pin-ring:#181c22; color-scheme:dark; }
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html{scroll-padding-top:120px}
+body{margin:0;background:var(--bg);color:var(--ink);font:14.5px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 a{color:var(--low)}
-code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
-header{padding:28px 32px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
-h1{margin:0 0 6px;font-size:22px;letter-spacing:-.01em}
-.src{display:flex;flex-wrap:wrap;gap:6px 22px;color:var(--muted);font-size:13px}
-.src b{color:var(--ink);font-weight:600}
-.src a{word-break:break-all}
-.notes{margin:10px 0 0;color:var(--muted);font-size:13px}
-.score{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);margin:22px 32px 0;border:1px solid var(--line)}
-.score button{all:unset;cursor:pointer;background:var(--panel);padding:16px 18px}
-.score button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
-.score .n{font-size:34px;font-weight:700;line-height:1}
-.score .l{color:var(--muted);font-size:13px;margin-top:6px;text-transform:capitalize}
-.score button[aria-pressed=true]{box-shadow:inset 0 -3px 0 currentColor}
-.sev-high{color:var(--high)}.sev-medium{color:var(--medium)}.sev-low{color:var(--low)}.sev-info{color:var(--info)}
-nav.tabs{display:flex;gap:4px;margin:24px 32px 0;border-bottom:1px solid var(--line);overflow-x:auto}
-nav.tabs button{all:unset;cursor:pointer;padding:10px 14px;color:var(--muted);font-weight:600;white-space:nowrap}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+.muted{color:var(--muted)}
+.wrap{max-width:1360px;margin:0 auto;padding:0 28px}
+
+/* header */
+header{background:var(--panel);border-bottom:1px solid var(--line)}
+.hd{display:flex;gap:20px;align-items:flex-start;justify-content:space-between;padding:22px 0 18px;flex-wrap:wrap}
+.hd h1{margin:0;font-size:24px;line-height:1.2;letter-spacing:-.01em}
+.hd h1 small{display:block;font-size:13px;font-weight:500;color:var(--muted);letter-spacing:0;margin-bottom:4px}
+.src{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;margin-top:8px}
+.src a{text-decoration:none}.src a:hover{text-decoration:underline}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600;font-size:13.5px;white-space:nowrap}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.btn.primary:hover{opacity:.9}
+.btn .dot{display:none;width:8px;height:8px;border-radius:50%;background:var(--medium);margin-left:8px;vertical-align:1px}
+.btn.dirty .dot{display:inline-block}
+.saved-note{font-size:12.5px;color:var(--muted)}
+
+/* progress */
+.prog{display:grid;grid-template-columns:minmax(280px,1.1fr) 2fr;gap:28px;padding:18px 0 20px}
+.pct{font-size:44px;font-weight:750;line-height:1;letter-spacing:-.02em}
+.pct-l{color:var(--muted);font-size:13px;margin-top:6px}
+.stack{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--sunk);margin:14px 0 10px;border:1px solid var(--line)}
+.stack i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+.lg{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:20px;padding:3px 10px;font-size:12.5px;cursor:pointer}
+.lg b{font-variant-numeric:tabular-nums}
+.lg[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.sw{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px 22px;align-content:start}
+.area{cursor:pointer;border:0;background:none;text-align:left;padding:4px 0}
+.area .t{display:flex;justify-content:space-between;font-size:13px;gap:8px}
+.area .t span:last-child{color:var(--muted);font-variant-numeric:tabular-nums}
+.area .bar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden;margin-top:5px;border:1px solid var(--line)}
+.area .bar i{display:block;height:100%;background:var(--solved)}
+.sevrow{display:flex;gap:14px;margin-top:12px;font-size:13px;flex-wrap:wrap}
+.sevrow span{display:inline-flex;align-items:center;gap:6px}
+
+/* tabs */
+nav.tabs{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line)}
+nav.tabs .wrap{display:flex;gap:2px;overflow-x:auto}
+nav.tabs button{border:0;background:none;padding:12px 14px;cursor:pointer;color:var(--muted);font-weight:650;white-space:nowrap}
 nav.tabs button[aria-selected=true]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
-nav.tabs button:focus-visible{outline:2px solid var(--focus)}
-main{padding:20px 32px 60px}
-.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
-.chip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:20px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
+nav.tabs .n{font-weight:500;color:var(--muted);margin-left:4px;font-variant-numeric:tabular-nums}
+main{padding:22px 0 80px}
+
+/* issues layout */
+.layout{display:grid;grid-template-columns:240px 1fr;gap:24px;align-items:start}
+.filters{position:sticky;top:64px;display:flex;flex-direction:column;gap:18px;max-height:calc(100vh - 80px);overflow:auto;padding-bottom:20px}
+.fg h4{margin:0 0 6px;font-size:11.5px;color:var(--muted);font-weight:650;letter-spacing:.02em}
+.fg .opts{display:flex;flex-wrap:wrap;gap:5px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:3px 10px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .chip[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
-.chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-input[type=search]{font:inherit;padding:6px 10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;min-width:220px}
-.tbl-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line)}
-table{border-collapse:collapse;width:100%;font-size:14px}
-th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-tr:last-child td{border-bottom:0}
-.sev{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;text-transform:capitalize;white-space:nowrap}
+.chip .c{color:inherit;opacity:.65;font-variant-numeric:tabular-nums}
+input[type=search],textarea{font:inherit;width:100%;padding:7px 10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px}
+.listhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap}
+.listhead .muted{font-size:13px}
+
+/* issue card */
+.card{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--open);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.card.st-solved{border-left-color:var(--solved)}.card.st-confirm{border-left-color:var(--confirm)}.card.st-wontfix{border-left-color:var(--wontfix)}
+.card.st-solved .ch,.card.st-wontfix .ch{opacity:.6}
+.card.flash{animation:flash 1.4s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 4px var(--focus)}100%{box-shadow:0 0 0 0 transparent}}
+.ch{padding:12px 16px 4px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:baseline}
+.num{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;font-weight:650}
+.ttl{font-weight:650;font-size:15px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12.5px}
+.sev{display:inline-flex;align-items:center;gap:5px;font-weight:650;text-transform:capitalize}
 .sev::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
-.cat{color:var(--muted);font-size:12.5px;white-space:nowrap}
-.cmp{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:13px;margin-top:4px}
-.cmp span:nth-child(odd){color:var(--muted)}
-.sw{display:inline-block;width:12px;height:12px;border:1px solid var(--line);vertical-align:-1px;margin-right:4px}
-del{background:var(--del);text-decoration:line-through}
-ins{background:var(--ins);text-decoration:none}
-.empty{padding:28px;color:var(--muted);background:var(--panel);border:1px solid var(--line)}
-.sec{background:var(--panel);border:1px solid var(--line);margin-bottom:22px}
-.sec-h{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;padding:12px 16px;border-bottom:1px solid var(--line)}
-.sec-h h3{margin:0;font-size:16px}
-.sec-h .meta{color:var(--muted);font-size:13px}
-.sim{font-weight:700}
+.s-high{color:var(--high)}.s-medium{color:var(--medium)}.s-low{color:var(--low)}.s-info{color:var(--info)}
+.crumb{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;font-size:12.5px;color:var(--muted);margin:2px 0 0}
+.crumb b{color:var(--ink);font-weight:600}
+.crumb .sep{opacity:.5}
+.crumb code{background:var(--sunk);border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--ink);cursor:copy}
+.cb{padding:10px 16px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px}
+.shots{display:flex;gap:10px;flex-wrap:wrap}
+.shot{margin:0;cursor:zoom-in;border:0;background:none;padding:0;text-align:left}
+.shot img{display:block;max-width:300px;max-height:190px;border:1px solid var(--line);border-radius:6px;background:var(--sunk)}
+.shot figcaption{font-size:11.5px;color:var(--muted);margin-bottom:3px;font-weight:600}
+.det{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13.5px;align-content:start}
+.det>span:nth-child(odd){color:var(--muted)}
+.det .wide{grid-column:1/-1}
+table.props{border-collapse:collapse;font-size:13px;margin-top:2px}
+table.props th,table.props td{padding:3px 12px 3px 0;text-align:left;border-bottom:1px solid var(--line)}
+table.props th{color:var(--muted);font-weight:600;font-size:12px}
+.swt{display:inline-block;width:11px;height:11px;border-radius:2px;border:1px solid var(--line);vertical-align:-1px;margin-right:5px}
+del{background:var(--del);text-decoration:line-through;border-radius:2px}
+ins{background:var(--ins);text-decoration:none;border-radius:2px}
+.hint{font-size:13px;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:7px 10px;margin-top:8px}
+.hint b{font-weight:650}
+.cf{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);background:var(--sunk)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;padding:6px 11px;font-size:12.5px;font-weight:600;cursor:pointer;border-right:1px solid var(--line);color:var(--muted)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true][data-s=open]{background:var(--open);color:var(--panel)}
+.seg button[aria-pressed=true][data-s=solved]{background:var(--solved);color:#fff}
+.seg button[aria-pressed=true][data-s=confirm]{background:var(--confirm);color:#fff}
+.seg button[aria-pressed=true][data-s=wontfix]{background:var(--wontfix);color:#fff}
+.cf input.note{flex:1;min-width:180px;font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)}
+.linkbtn{border:0;background:none;color:var(--low);cursor:pointer;font-size:12.5px;font-weight:600;padding:4px 2px}
+.empty{padding:30px;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:10px;text-align:center}
+
+/* page map */
+.vt{display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:18px;overflow:hidden}
+.sec-h{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;padding:12px 16px;border-bottom:1px solid var(--line)}
+.sec-h h3{margin:0;font-size:15.5px}
+.sec-h .meta{color:var(--muted)}
 .viewer{padding:14px 16px}
-.modes{display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap}
 .side{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .side figure{margin:0}
-.side figcaption{font-size:12px;color:var(--muted);margin-bottom:4px}
-.side img,.onion img{width:100%;display:block;border:1px solid var(--line)}
-.onion{position:relative}
-.onion img.top{position:absolute;inset:0;height:auto}
-.onion input{width:220px}
-@media (max-width:760px){
-  header,main{padding-left:16px;padding-right:16px}.score,nav.tabs{margin-left:16px;margin-right:16px}
-  .score{grid-template-columns:repeat(2,1fr)}.side{grid-template-columns:1fr}
+.side figcaption{font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.pinbox{position:relative}
+.pinbox img,.side img{width:100%;display:block;border:1px solid var(--line);border-radius:4px}
+.pin{position:absolute;transform:translate(-50%,-50%);min-width:22px;height:22px;padding:0 5px;border-radius:11px;border:2px solid var(--pin-ring);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.pin.done{opacity:.4}
+.pin.pulse{animation:pulse 1.2s ease-out 2}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(45,98,163,.8)}100%{box-shadow:0 0 0 16px rgba(45,98,163,0)}}
+.onion .top{position:absolute;inset:0;width:100%;pointer-events:none}
+.ctrl{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;font-size:13px}
+
+/* copy */
+.roles{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:16px}
+.rolec{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 12px;cursor:pointer;text-align:left}
+.rolec[aria-pressed=true]{outline:2px solid var(--ink);outline-offset:-1px}
+.rolec .rn{font-weight:650;font-size:13px}
+.rolec .rs{font-size:12px;color:var(--muted);margin-top:2px}
+.rolec .bar{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:7px;background:var(--sunk)}
+.grp{margin:18px 0 6px;font-size:12px;color:var(--muted);font-weight:650;letter-spacing:.02em}
+.crow{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 14px;margin-bottom:8px;display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:6px 16px;align-items:start}
+.badge{display:inline-block;font-size:11.5px;font-weight:650;border-radius:5px;padding:1px 7px;border:1px solid var(--line);background:var(--sunk);white-space:nowrap}
+.st-ok{color:var(--solved)}.st-punctuation{color:var(--low)}.st-diff{color:var(--medium)}.st-missing{color:var(--high)}
+.ctext{font-size:14px}
+.ctext .lab{font-size:11.5px;color:var(--muted);font-weight:600;display:block}
+.crow img{max-width:200px;max-height:120px;border:1px solid var(--line);border-radius:5px;cursor:zoom-in;display:block}
+.tbl{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table.t{border-collapse:collapse;width:100%;font-size:13.5px}
+table.t th{text-align:left;font-size:12px;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.t td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.t tr:last-child td{border-bottom:0}
+.intro{font-size:13.5px;color:var(--muted);margin:0 0 14px;max-width:80ch}
+
+dialog{border:0;border-radius:12px;padding:0;max-width:min(1100px,94vw);max-height:92vh;background:var(--panel);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.4)}
+dialog::backdrop{background:rgba(10,12,15,.7)}
+dialog .dh{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);gap:12px}
+dialog .db{padding:14px;overflow:auto;max-height:calc(92vh - 52px);display:flex;gap:14px;flex-wrap:wrap}
+dialog figure{margin:0;flex:1;min-width:280px}
+dialog img{max-width:100%;display:block;border:1px solid var(--line);border-radius:6px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:9px;font-size:13.5px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+@media (max-width:900px){
+  .wrap{padding:0 16px}.prog{grid-template-columns:1fr}.layout{grid-template-columns:1fr}
+  .filters{position:static;max-height:none}.cb{grid-template-columns:1fr}.side{grid-template-columns:1fr}
+  .crow{grid-template-columns:1fr}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 </head>
 <body>
 <header>
-  <h1>Site QA report</h1>
-  <div class="src" id="src"></div>
-  <p class="notes" id="notes"></p>
+  <div class="wrap">
+    <div class="hd">
+      <div>
+        <h1 id="ttl"></h1>
+        <div class="src" id="src"></div>
+      </div>
+      <div class="actions">
+        <span class="saved-note" id="savednote"></span>
+        <button class="btn" id="bImport" title="Bring statuses and notes from an earlier saved report">Import progress</button>
+        <button class="btn" id="bCsv">Export CSV</button>
+        <button class="btn primary" id="bSave" title="Download this report with your statuses and notes">Save report<span class="dot" aria-hidden="true"></span></button>
+        <input type="file" id="fImport" accept=".html,text/html" hidden>
+      </div>
+    </div>
+    <div class="prog" id="prog"></div>
+  </div>
 </header>
-<div class="score" id="score" role="group" aria-label="Filter by severity"></div>
-<nav class="tabs" role="tablist" id="tabs"></nav>
-<main id="main"></main>
+<nav class="tabs" role="tablist"><div class="wrap" id="tabs"></div></nav>
+<main><div class="wrap" id="main"></div></main>
+<dialog id="dlg"><div class="dh"><b id="dlgT"></b><button class="btn" id="dlgX">Close</button></div><div class="db" id="dlgB"></div></dialog>
+
+<script id="qa-track" type="application/json">{}</script>
 <script>
 const D = /*__DATA__*/null;
+const PRISTINE = "<!doctype html>\n" + document.documentElement.outerHTML;
+const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const SEVS = ["high","medium","low","info"];
-const state = {tab:"issues", sev:null, cat:null, q:""};
+const STATUS = {open:"Open", solved:"Solved", confirm:"Needs confirmation", wontfix:"No need to fix"};
+const COPY_ST = {ok:"OK", punctuation:"Punctuation", diff:"Different", missing:"Missing"};
+const HINTS = {
+  fig_text_missing:"Add this text to the page, or confirm it was removed from the design on purpose.",
+  fig_text_diff:"Update the text in Webflow to match Figma, unless the copy doc says otherwise (the doc wins).",
+  style:"In Webflow, select the element (click the grey selector to copy it) and set the Figma values shown in the table.",
+  hidden_on_load:"Usually fine for accordions, tabs and sliders. Open it on the page and check it appears after clicking or scrolling.",
+  section_missing:"This whole section of the design wasn't found. Check it exists on the page or was moved / renamed.",
+  section_height:"Compare paddings, margins and gaps with Figma using the Overlay in Page map.",
+  section_visual:"Open Page map and use the Overlay slider to spot what moved or changed.",
+  video_missing:"Add the video from the design to this section, or confirm it's replaced by an image on purpose.",
+  images_missing:"The design shows images in this section; the page has none. Check the image elements or CMS fields.",
+  alt_missing:"In Webflow image settings, add a short Alt text describing the image (or mark it decorative).",
+  img_stretched:"Set the image Fit to Cover (object-fit: cover) or use an image with the same proportions as its box.",
+  img_upscaled:"Upload a larger file: about 2× the display width so it stays sharp on retina screens.",
+  img_heavy:"Export a smaller image (about 2× the display width) or WebP to make the page faster.",
+  video_broken:"The video file doesn't load. Re-upload it or check the URL.",
+  video_paused:"Enable Autoplay + Muted + Loop in the video settings, and check the file loads.",
+  video_unmuted:"Enable Muted in the video settings; browsers block autoplay with sound.",
+  video_inline:"Add the playsinline attribute so iPhones play it inside the page.",
+  video_stretched:"Set the video Fit to Cover or match the video's proportions.",
+  img_broken:"The image URL fails. Re-upload the image or fix the CMS field.",
+  img_broken_many:"Many images fail at once: check the asset host / CDN or a recent bulk change.",
+  asset_failed:"A file the page needs doesn't load. Check its URL in the page settings or custom code.",
+  asset_failed_many:"Many files fail from the same host. Check that host is up and allowed.",
+  hscroll:"Some element is wider than the screen. See the 'past the right edge' issues for this view; set max-width:100% or overflow:hidden on its section.",
+  overflow:"Limit this element's width (max-width:100%), fix negative margins, or hide overflow on its section at this breakpoint.",
+  clipped:"Let the container grow (remove the fixed height) or reduce the text size at this breakpoint.",
+  tap_small:"Add padding so the tap area is at least 44 × 44px on mobile.",
+  copy_punct:"Small difference only. Red = in the doc, missing on the site · Green = on the site, not in the doc.",
+  copy_diff:"Update the text in Webflow to match the doc. Red = in the doc, missing on the site · Green = on the site, not in the doc.",
+  stat_diff:"Numbers must match the doc exactly. Update the stat in Webflow or confirm the new number.",
+  btn_not_link:"Turn this text into a Button / Link Block and set its URL.",
+  btn_link_diff:"Change the button's link in Webflow to the URL in the doc.",
+  copy_missing:"Add this copy to the page in the section shown, or confirm it was cut.",
+  ref_on_site:"Remove this text from the page: it's a note in the copy doc, not copy for the site.",
+  extra_text:"Check if this text should be on the page. If yes, add it to the copy doc; if not, remove it.",
+  no_link:"Open the button / link settings in Webflow and set where it should go.",
+  link_no_label:"Add text or an aria-label so screen readers know where the link goes.",
+  anchor_missing:"Add this id to the target section (Element settings › ID) or fix the link.",
+  bad_mailto:"Fix the email address in the link.", bad_tel:"Fix the phone number in the link.",
+  url_space:"Replace spaces in the URL with %20 (browsers fix it, but some tools and crawlers don't).",
+  link_error:"The link doesn't answer. Check the URL; the site may be down or blocking requests.",
+  link_blocked:"This site blocks bots. Open the link once by hand; mark Solved or No need to fix.",
+  link_broken:"The destination returns an error. Fix or replace the URL.",
+  link_redirect:"Works, but redirects. Point the link straight to the final URL.",
+  button_no_href:"Click it on the page. If nothing happens, add a link or interaction; otherwise mark No need to fix."
+};
 
-document.getElementById("src").innerHTML =
-  `<span><b>Live</b> <a href="${esc(D.site)}" target="_blank" rel="noopener">${esc(D.site)}</a></span>` +
-  (D.figma ? `<span><b>Figma</b> <a href="${esc(D.figma)}" target="_blank" rel="noopener">open layout</a></span>` : "") +
-  (D.figma_mobile ? `<span><b>Figma mobile</b> <a href="${esc(D.figma_mobile)}" target="_blank" rel="noopener">open layout</a></span>` : "") +
-  (D.doc ? `<span><b>Copy</b> <a href="${esc(D.doc)}" target="_blank" rel="noopener">open doc</a></span>` : "") +
-  `<span>${esc(D.date)}</span>`;
-document.getElementById("notes").textContent = (D.notes || []).join(" · ");
+// ---------- tracking state
+let TRACK = {};
+try { TRACK = JSON.parse(document.getElementById("qa-track").textContent || "{}"); } catch(e) { TRACK = {}; }
+const LS_KEY = "siteqa:" + D.run_id;
+try { const ls = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+  for (const [k,v] of Object.entries(ls)) if (!TRACK[k] || (v.t||0) > (TRACK[k].t||0)) TRACK[k] = v; } catch(e) {}
+let dirty = false;
+const statusOf = id => (TRACK[id] && TRACK[id].s) || "open";
+function setTrack(id, patch){
+  TRACK[id] = Object.assign({s:"open", n:""}, TRACK[id], patch, {t: Date.now()});
+  dirty = true; persist(); renderProgress(); updateSaveBtn();
+}
+function persist(){ try { localStorage.setItem(LS_KEY, JSON.stringify(TRACK)); } catch(e) {} }
+function updateSaveBtn(){ $("#bSave").classList.toggle("dirty", dirty);
+  $("#savednote").textContent = dirty ? "Unsaved changes" : ""; }
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 
-function renderScore(){
-  document.getElementById("score").innerHTML = SEVS.map(s => {
-    const n = D.issues.filter(i => i.severity === s).length;
-    return `<button class="sev-${s}" data-sev="${s}" aria-pressed="${state.sev===s}"><div class="n">${n}</div><div class="l">${s}</div></button>`;
+const ISS = D.issues;
+const BYID = Object.fromEntries(ISS.map(i => [i.id, i]));
+const state = {tab:"issues", status:new Set(), sev:new Set(), cat:new Set(), view:new Set(), q:"",
+               copyRole:null, copyStatus:null, mapView:null};
+
+// ---------- header
+const path = (() => { try { const u = new URL(D.site); return u.hostname + u.pathname; } catch(e) { return D.site; } })();
+$("#ttl").innerHTML = `<small>Site QA report · ${esc(D.date)}</small>${esc(path)}`;
+$("#src").innerHTML = [
+  `<a href="${esc(D.site)}" target="_blank" rel="noopener">Live page ↗</a>`,
+  D.figma ? `<a href="${esc(D.figma)}" target="_blank" rel="noopener">Figma desktop ↗</a>` : "",
+  D.figma_mobile ? `<a href="${esc(D.figma_mobile)}" target="_blank" rel="noopener">Figma mobile ↗</a>` : "",
+  D.doc ? `<a href="${esc(D.doc)}" target="_blank" rel="noopener">Copy doc ↗</a>` : "",
+  ...(D.notes || []).map(n => `<span class="muted">${esc(n)}</span>`)
+].filter(Boolean).join("");
+
+// ---------- progress
+function renderProgress(){
+  const tot = ISS.length;
+  const c = {open:0, solved:0, confirm:0, wontfix:0};
+  ISS.forEach(i => c[statusOf(i.id)]++);
+  const done = c.solved + c.wontfix;
+  const pct = tot ? Math.round(done / tot * 100) : 100;
+  const seg = s => tot ? (c[s] / tot * 100) : 0;
+  const areas = Object.entries(D.categories).map(([k, l]) => {
+    const list = ISS.filter(i => i.category === k); if (!list.length) return "";
+    const d = list.filter(i => ["solved","wontfix"].includes(statusOf(i.id))).length;
+    return `<button class="area" data-cat="${k}"><div class="t"><span>${esc(l)}</span><span>${d}/${list.length}</span></div>
+      <div class="bar"><i style="width:${d / list.length * 100}%"></i></div></button>`;
   }).join("");
-  document.querySelectorAll("#score button").forEach(b => b.onclick = () => {
-    state.sev = state.sev === b.dataset.sev ? null : b.dataset.sev; state.tab = "issues"; render();
-  });
+  const sevc = SEVS.map(s => { const list = ISS.filter(i => i.severity === s);
+    const open = list.filter(i => !["solved","wontfix"].includes(statusOf(i.id))).length;
+    return `<span><i class="sw" style="background:var(--${s})"></i>${open} ${s} open</span>`; }).join("");
+  $("#prog").innerHTML = `<div>
+      <div class="pct">${pct}%</div>
+      <div class="pct-l">${done} of ${tot} issues closed (solved or no need to fix)</div>
+      <div class="stack" role="img" aria-label="Progress by status">
+        <i style="width:${seg("solved")}%;background:var(--solved)"></i>
+        <i style="width:${seg("wontfix")}%;background:var(--wontfix)"></i>
+        <i style="width:${seg("confirm")}%;background:var(--confirm)"></i></div>
+      <div class="legend">${Object.entries(STATUS).map(([k, l]) =>
+        `<button class="lg" data-st="${k}" aria-pressed="${state.status.has(k) && state.status.size === 1}"><i class="sw" style="background:var(--${k})"></i>${l} <b>${c[k]}</b></button>`).join("")}</div>
+    </div>
+    <div><div class="areas">${areas}</div><div class="sevrow">${sevc}</div></div>`;
+  $("#prog").querySelectorAll(".lg").forEach(b => b.onclick = () => {
+    const k = b.dataset.st; const only = state.status.has(k) && state.status.size === 1;
+    state.status = only ? new Set() : new Set([k]); state.tab = "issues"; render(); });
+  $("#prog").querySelectorAll(".area").forEach(b => b.onclick = () => {
+    state.cat = new Set([b.dataset.cat]); state.tab = "issues"; render(); });
 }
 
-const TABS = [["issues","Issues"],["sections","Sections vs Figma"],["copy","Copy vs doc"],["links","Links checked"]];
+// ---------- tabs
 function renderTabs(){
-  document.getElementById("tabs").innerHTML = TABS.map(([k,l]) =>
-    `<button role="tab" data-t="${k}" aria-selected="${state.tab===k}">${l}</button>`).join("");
-  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { state.tab = b.dataset.t; render(); });
+  const openCount = ISS.filter(i => !["solved","wontfix"].includes(statusOf(i.id))).length;
+  const T = [["issues","Issues", `${openCount} open`], ["map","Page map", ""],
+    ["copy","Copy check", D.copy_rows.length ? D.copy_rows.length : ""],
+    ["refs","Reference text", D.ref_rows.length ? D.ref_rows.length : ""], ["links","Links", D.links.length]];
+  $("#tabs").innerHTML = T.map(([k, l, n]) =>
+    `<button role="tab" data-t="${k}" aria-selected="${state.tab === k}">${l}${n !== "" ? `<span class="n">${n}</span>` : ""}</button>`).join("");
+  $("#tabs").querySelectorAll("button").forEach(b => b.onclick = () => { state.tab = b.dataset.t; render(); window.scrollTo({top: document.querySelector("nav.tabs").offsetTop}); });
 }
 
-function issueRow(i){
-  const cmp = [];
-  if (i.text) cmp.push(`<span>Element</span><span>${esc(i.text)}</span>`);
-  if (i.diff) cmp.push(`<span>Diff</span><span>${i.diff}</span>`);
-  else {
-    if (i.expected) cmp.push(`<span>Expected</span><span>${i.swatch ? `<i class="sw" style="background:${esc(i.swatch[0])}"></i>` : ""}${esc(i.expected)}</span>`);
-    if (i.actual) cmp.push(`<span>Live</span><span>${i.swatch ? `<i class="sw" style="background:${esc(i.swatch[1])}"></i>` : ""}${esc(i.actual)}</span>`);
-  }
-  if (i.url) cmp.push(`<span>URL</span><span class="mono"><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.url)}</a></span>`);
-  if (i.src) cmp.push(`<span>File</span><span class="mono">${esc(i.src)}</span>`);
-  return `<tr><td><span class="sev sev-${i.severity}">${i.severity}</span></td>
-    <td class="cat">${esc(D.categories[i.category])}</td>
-    <td><div>${esc(i.title)}</div>${cmp.length ? `<div class="cmp">${cmp.join("")}</div>` : ""}</td>
-    <td class="cat">${esc(i.where)}</td></tr>`;
+// ---------- location helpers
+function crumb(loc, extra){
+  if (!loc || (!loc.view && !loc.section)) return "";
+  const parts = [];
+  if (loc.view) parts.push(`<b>${esc(loc.view)}</b>`);
+  if (loc.section) parts.push(`${loc.section_no ? `Section ${loc.section_no}: ` : ""}“${esc(loc.section)}”`);
+  if (loc.element) parts.push(loc.element.startsWith("Figma") || loc.element.startsWith("line") ? esc(loc.element)
+    : `<code title="Click to copy the selector" data-copy="${esc(loc.element)}">${esc(loc.element)}</code>`);
+  if (loc.y != null) parts.push(`${Math.round(loc.y).toLocaleString()}px from top`);
+  return `<div class="crumb">${extra ? `<span>${extra}</span><span class="sep">›</span>` : ""}${parts.join('<span class="sep">›</span>')}</div>`;
 }
+const thumbImg = (k, cap, alt) => k && D.thumbs[k] ? `<button class="shot" data-zoom="${k}" data-cap="${esc(cap)}"><figcaption>${esc(cap)}</figcaption><img src="${D.thumbs[k]}" alt="${esc(alt || cap)}" loading="lazy"></button>` : "";
 
+// ---------- issues
+function filtered(){
+  const q = state.q.toLowerCase();
+  return ISS.filter(i => (!state.status.size || state.status.has(statusOf(i.id))) &&
+    (!state.sev.size || state.sev.has(i.severity)) && (!state.cat.size || state.cat.has(i.category)) &&
+    (!state.view.size || state.view.has(i.view || "—")) &&
+    (!q || [i.title, i.text, i.expected, i.actual, i.url, i.loc && i.loc.section, i.loc && i.loc.element, (TRACK[i.id]||{}).n, "#" + i.n]
+      .join(" ").toLowerCase().includes(q)));
+}
+function chipGroup(title, key, opts, labelFn, colorFn){
+  return `<div class="fg"><h4>${title}</h4><div class="opts">${opts.map(o => {
+    const n = ISS.filter(i => (key === "status" ? statusOf(i.id) : key === "view" ? (i.view || "—") : key === "sev" ? i.severity : i.category) === o).length;
+    if (!n) return "";
+    return `<button class="chip" data-k="${key}" data-v="${o}" aria-pressed="${state[key].has(o)}">${colorFn ? `<i class="sw" style="background:${colorFn(o)}"></i>` : ""}${esc(labelFn(o))}<span class="c">${n}</span></button>`;
+  }).join("")}</div></div>`;
+}
 function renderIssues(m){
-  const cats = Object.entries(D.categories);
-  const list = D.issues.filter(i => (!state.sev || i.severity === state.sev) && (!state.cat || i.category === state.cat) &&
-    (!state.q || JSON.stringify(i).toLowerCase().includes(state.q.toLowerCase())));
-  m.innerHTML = `<div class="bar">
-      <button class="chip" data-c="" aria-pressed="${!state.cat}">All areas</button>
-      ${cats.map(([k,l]) => `<button class="chip" data-c="${k}" aria-pressed="${state.cat===k}">${l} (${D.issues.filter(i=>i.category===k && (!state.sev||i.severity===state.sev)).length})</button>`).join("")}
-      <input type="search" placeholder="Search issues" aria-label="Search issues" value="${esc(state.q)}">
-    </div>` + (list.length ? `<div class="tbl-wrap"><table><thead><tr><th>Severity</th><th>Area</th><th>Issue</th><th>Where</th></tr></thead>
-      <tbody>${list.map(issueRow).join("")}</tbody></table></div>` : `<div class="empty">No issues match these filters.</div>`);
-  m.querySelectorAll(".chip").forEach(b => b.onclick = () => { state.cat = b.dataset.c || null; render(); });
-  const s = m.querySelector("input"); s.oninput = () => { state.q = s.value; renderIssuesKeepFocus(m); };
+  const views = [...new Set(ISS.map(i => i.view || "—"))];
+  m.innerHTML = `<div class="layout"><aside class="filters">
+      <div class="fg"><h4>SEARCH</h4><input type="search" id="q" placeholder="Text, section, selector, #number" value="${esc(state.q)}"></div>
+      ${chipGroup("STATUS", "status", Object.keys(STATUS), k => STATUS[k], k => `var(--${k})`)}
+      ${chipGroup("SEVERITY", "sev", SEVS, k => k, k => `var(--${k})`)}
+      ${chipGroup("AREA", "cat", Object.keys(D.categories), k => D.categories[k])}
+      ${chipGroup("VIEW", "view", views, k => k === "—" ? "Whole page" : k)}
+      <button class="linkbtn" id="clr">Clear all filters</button>
+    </aside><section id="ilist"></section></div>`;
+  wireFilters(m);
+  renderList();
 }
-function renderIssuesKeepFocus(m){ const pos = m.querySelector("input").selectionStart; renderIssues(m); const s = m.querySelector("input"); s.focus(); s.setSelectionRange(pos,pos); }
-
-function renderSections(m){
-  const out = [];
-  for (const v of D.views){
-    if (!v.sections.length){
-      out.push(`<div class="sec"><div class="sec-h"><h3>${esc(v.tag)} · ${v.width}px</h3><span class="meta">No Figma frame given for this view — live capture only.</span></div>
-        ${v.live_full ? `<div class="viewer"><img src="${v.live_full}" alt="Live ${esc(v.tag)} capture" style="max-width:100%;border:1px solid var(--line)"></div>` : ""}</div>`);
-      continue;
-    }
-    v.sections.forEach((s, k) => {
-      const id = `${v.tag}-${k}`;
-      const simCls = s.similarity == null ? "" : s.similarity < 55 ? "sev-high" : s.similarity < 70 ? "sev-medium" : "sev-ok";
-      out.push(`<div class="sec"><div class="sec-h"><h3>${esc(v.tag)} · ${esc(s.name)}</h3>
-        <span class="meta">Figma ${s.figma_h}px · Live ${s.live_h ?? "—"}px</span>
-        ${s.similarity != null ? `<span class="meta">Visual match <span class="sim ${simCls}" style="${simCls==='sev-ok'?'color:var(--ok)':''}">${s.similarity}%</span></span>` : ""}</div>
-        ${s.live_img ? `<div class="viewer" data-id="${id}">
-          <div class="modes"><button class="chip" data-m="side" aria-pressed="true">Side by side</button>
-          <button class="chip" data-m="onion" aria-pressed="false">Overlay</button></div>
-          <div class="side"><figure><figcaption>Figma</figcaption>${s.figma_img ? `<img src="${s.figma_img}" alt="Figma ${esc(s.name)}">` : "<div class='empty'>No render</div>"}</figure>
-          <figure><figcaption>Live</figcaption><img src="${s.live_img}" alt="Live ${esc(s.name)}"></figure></div>
-          <div class="onion" hidden><label class="meta">Figma opacity <input type="range" min="0" max="100" value="50"></label>
-          <div style="position:relative;margin-top:8px"><img src="${s.live_img}" alt="Live ${esc(s.name)}">${s.figma_img ? `<img class="top" src="${s.figma_img}" alt="" style="opacity:.5">` : ""}</div></div>
-        </div>` : `<div class="viewer meta">This section's content wasn't found on the live page.</div>`}</div>`);
-    });
+function filtersHTML(){
+  const views = [...new Set(ISS.map(i => i.view || "—"))];
+  return `${chipGroup("STATUS", "status", Object.keys(STATUS), k => STATUS[k], k => `var(--${k})`)}`;
+}
+function refreshStatusChips(){
+  const g = document.querySelector('.filters .fg:nth-child(2)');
+  if (g) { g.outerHTML = filtersHTML(); wireFilters(document.querySelector('.filters')); }
+}
+function wireFilters(m){
+  m.querySelectorAll(".chip[data-k]").forEach(b => b.onclick = () => {
+    const set = state[b.dataset.k]; set.has(b.dataset.v) ? set.delete(b.dataset.v) : set.add(b.dataset.v); render(); });
+  const clr = m.querySelector("#clr");
+  if (clr) clr.onclick = () => { ["status","sev","cat","view"].forEach(k => state[k] = new Set()); state.q = ""; render(); };
+  const q = m.querySelector("#q");
+  if (q) q.oninput = () => { state.q = q.value; renderList(); };
+}
+function renderList(){
+  const list = filtered();
+  const el = $("#ilist");
+  el.innerHTML = `<div class="listhead"><span class="muted">Showing ${list.length} of ${ISS.length} issues</span>
+      ${list.length ? `<span class="muted">Mark all shown as: <button class="linkbtn" data-bulk="solved">Solved</button> · <button class="linkbtn" data-bulk="confirm">Needs confirmation</button> · <button class="linkbtn" data-bulk="wontfix">No need to fix</button></span>` : ""}</div>` +
+    (list.length ? list.map(card).join("") : `<div class="empty">No issues match these filters.</div>`);
+  el.querySelectorAll("[data-bulk]").forEach(b => b.onclick = () => {
+    if (!confirm(`Mark ${list.length} issues as “${STATUS[b.dataset.bulk]}”?`)) return;
+    list.forEach(i => setTrack(i.id, {s: b.dataset.bulk})); render(); });
+  wireCards(el);
+}
+function card(i){
+  const st = statusOf(i.id), note = (TRACK[i.id] || {}).n || "";
+  const det = [];
+  if (i.text) det.push(`<span>Element</span><span>${esc(i.text)}</span>`);
+  if (i.props) det.push(`<div class="wide"><table class="props"><thead><tr><th>Property</th><th>Figma</th><th>Live</th></tr></thead><tbody>${
+    i.props.map(p => `<tr><td>${esc(p.prop)}</td><td>${p.swatch ? `<i class="swt" style="background:${esc(p.figma)}"></i>` : ""}${esc(p.figma)}</td><td>${p.swatch ? `<i class="swt" style="background:${esc(p.live)}"></i>` : ""}${esc(p.live)}</td></tr>`).join("")}</tbody></table></div>`);
+  if (i.diff) det.push(`<span>Difference</span><span>${i.diff}</span>`);
+  else {
+    if (i.expected) det.push(`<span>${i.category === "copy" ? "Copy doc" : "Expected"}</span><span>${esc(i.expected)}</span>`);
+    if (i.actual) det.push(`<span>Live</span><span>${esc(i.actual)}</span>`);
   }
-  m.innerHTML = out.join("");
-  m.querySelectorAll(".viewer[data-id]").forEach(vw => {
-    const side = vw.querySelector(".side"), onion = vw.querySelector(".onion");
-    vw.querySelectorAll("[data-m]").forEach(b => b.onclick = () => {
-      const o = b.dataset.m === "onion"; side.hidden = o; onion.hidden = !o;
-      vw.querySelectorAll("[data-m]").forEach(x => x.setAttribute("aria-pressed", x === b));
-    });
+  if (i.diff && i.category === "copy") det.push(`<span>Copy doc</span><span>${esc(i.expected)}</span>`);
+  if (i.url) det.push(`<span>URL</span><span class="mono"><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.url)}</a></span>`);
+  if (i.src) det.push(`<span>File</span><span class="mono">${esc(i.src)}</span>`);
+  const canMap = i.view && i.box && D.views.some(v => v.tag === i.view);
+  const shots = thumbImg(i.thumb, "Live page", "Live capture") + thumbImg(i.fthumb, "Figma", "Figma capture");
+  return `<article class="card st-${st}" id="i-${i.id}">
+    <div class="ch"><span class="num">#${i.n}</span><div>
+      <div class="meta"><span class="sev s-${i.severity}">${i.severity}</span><span class="muted">${esc(D.categories[i.category])}</span>${i.role ? `<span class="badge">${esc(D.roles[i.role] || i.role)}</span>` : ""}</div>
+      <div class="ttl">${esc(i.title)}</div>
+      ${crumb(i.loc, "Where")}
+      ${i.doc_loc ? crumb(i.doc_loc, "In doc") : ""}
+    </div></div>
+    <div class="cb"><div><div class="det">${det.join("")}</div>
+      ${HINTS[i.code] ? `<div class="hint"><b>How to fix:</b> ${esc(HINTS[i.code])}</div>` : ""}</div>
+      ${shots ? `<div class="shots">${shots}</div>` : ""}</div>
+    <div class="cf"><div class="seg" role="group" aria-label="Status">${Object.entries(STATUS).map(([k, l]) =>
+        `<button data-s="${k}" data-id="${i.id}" aria-pressed="${st === k}">${l}</button>`).join("")}</div>
+      <input class="note" data-id="${i.id}" placeholder="Add a note (who, what was done…)" value="${esc(note)}" aria-label="Note for issue ${i.n}">
+      ${canMap ? `<button class="linkbtn" data-map="${i.id}">Show on page map</button>` : ""}
+    </div></article>`;
+}
+function wireCards(root){
+  root.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
+    const id = b.dataset.id; setTrack(id, {s: b.dataset.s});
+    const c = document.getElementById("i-" + id); c.className = "card st-" + b.dataset.s;
+    c.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    renderTabs(); refreshStatusChips(); });
+  root.querySelectorAll("input.note").forEach(n => n.onchange = () => setTrack(n.dataset.id, {n: n.value}));
+  root.querySelectorAll("[data-map]").forEach(b => b.onclick = () => gotoMap(b.dataset.map));
+  wireCommon(root);
+}
+function wireCommon(root){
+  root.querySelectorAll("[data-zoom]").forEach(b => b.onclick = () => {
+    const card = b.closest("article,.crow");
+    const imgs = card ? [...card.querySelectorAll("[data-zoom]")] : [b];
+    openDlg(b.dataset.cap, imgs.map(x => `<figure><figcaption class="muted">${esc(x.dataset.cap)}</figcaption><img src="${D.thumbs[x.dataset.zoom]}" alt=""></figure>`).join(""));
+  });
+  root.querySelectorAll("code[data-copy]").forEach(c => c.onclick = () => {
+    navigator.clipboard && navigator.clipboard.writeText(c.dataset.copy).then(() => toast("Selector copied"), () => {}); });
+  root.querySelectorAll("[data-goto]").forEach(b => b.onclick = () => gotoIssue(b.dataset.goto));
+}
+function gotoIssue(id){
+  state.tab = "issues"; ["status","sev","cat","view"].forEach(k => state[k] = new Set()); state.q = ""; render();
+  const c = document.getElementById("i-" + id);
+  if (c) { c.scrollIntoView({block: "center", behavior: "smooth"}); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); }
+}
+
+// ---------- page map
+function pinsFor(view, top, shownH, width){
+  return ISS.filter(i => i.view === view && i.box && i.box.y >= top && i.box.y < top + shownH).map(i => {
+    const x = Math.min(98, Math.max(2, (i.box.x + Math.min(i.box.w, 40) / 2) / width * 100));
+    const y = Math.min(99, Math.max(1, (i.box.y - top + Math.min(i.box.h, 30) / 2) / shownH * 100));
+    const done = ["solved","wontfix"].includes(statusOf(i.id));
+    return `<button class="pin${done ? " done" : ""}" id="p-${i.id}" data-goto="${i.id}" style="left:${x}%;top:${y}%;background:var(--${i.severity})" title="#${i.n} ${esc(i.title)}">${i.n}</button>`;
+  }).join("");
+}
+function renderMap(m){
+  const views = D.views;
+  if (!state.mapView) state.mapView = views[0].tag;
+  const v = views.find(x => x.tag === state.mapView);
+  let body = "";
+  if (v.sections && v.sections.length) {
+    body = v.sections.map((s, k) => {
+      const sim = s.similarity == null ? "" : `<span class="meta">Visual match <b class="${s.similarity < 55 ? "s-high" : s.similarity < 70 ? "s-medium" : ""}" style="${s.similarity >= 70 ? "color:var(--solved)" : ""}">${s.similarity}%</b></span>`;
+      const n = s.live_top == null ? 0 : ISS.filter(i => i.view === v.tag && i.box && i.box.y >= s.live_top && i.box.y < s.live_top + (s.live_shown_h || 0)).length;
+      return `<div class="sec" id="sec-${v.tag}-${k}"><div class="sec-h"><h3>${k + 1}. ${esc(s.label)}</h3>
+        <span class="meta">Figma ${s.figma_h}px · Live ${s.live_h ?? "—"}px</span>${sim}
+        ${n ? `<span class="meta">${n} issue${n > 1 ? "s" : ""} pinned</span>` : ""}</div>
+        ${s.live_img ? `<div class="viewer">
+          <div class="ctrl"><div class="seg" role="group"><button data-mode="side" aria-pressed="true">Side by side</button><button data-mode="onion" aria-pressed="false">Overlay</button></div>
+          <label class="onionc" hidden>Figma opacity <input type="range" min="0" max="100" value="50"></label></div>
+          <div class="side">
+            <figure><figcaption>Figma</figcaption>${s.figma_img ? `<img src="${s.figma_img}" alt="Figma: ${esc(s.label)}" loading="lazy">` : `<div class="empty">No render</div>`}</figure>
+            <figure><figcaption>Live — numbers are issues, click to open</figcaption><div class="pinbox"><img src="${s.live_img}" alt="Live: ${esc(s.label)}" loading="lazy">${pinsFor(v.tag, s.live_top, s.live_shown_h, v.width)}</div></figure>
+          </div>
+          <div class="onion" hidden><div class="pinbox"><img src="${s.live_img}" alt="">${s.figma_img ? `<img class="top" src="${s.figma_img}" alt="" style="opacity:.5">` : ""}${pinsFor(v.tag, s.live_top, s.live_shown_h, v.width)}</div></div>
+        </div>` : `<div class="viewer muted">This section's content wasn't found on the live page.</div>`}</div>`;
+    }).join("");
+  } else if (v.live_full) {
+    const n = ISS.filter(i => i.view === v.tag && i.box).length;
+    body = `<div class="sec"><div class="sec-h"><h3>Full page · ${v.width}px</h3><span class="meta">No Figma frame for this view · ${n} issues pinned</span></div>
+      <div class="viewer"><div class="pinbox" style="max-width:700px">
+      <img src="${v.live_full}" alt="Live ${esc(v.tag)} page">${pinsFor(v.tag, 0, v.live_shown_h, v.width)}</div></div></div>`;
+  }
+  m.innerHTML = `<p class="intro">Each section of the design next to the same part of the live page. Numbered pins mark issues at their exact spot — click one to open it. Use Overlay to fade Figma over the live page.</p>
+    <div class="vt">${views.map(x => `<button class="chip" data-v="${x.tag}" aria-pressed="${x.tag === state.mapView}">${x.tag} · ${x.width}px</button>`).join("")}</div>${body}`;
+  m.querySelectorAll(".vt .chip").forEach(b => b.onclick = () => { state.mapView = b.dataset.v; render(); });
+  m.querySelectorAll(".viewer").forEach(vw => {
+    const side = vw.querySelector(".side"), onion = vw.querySelector(".onion"), oc = vw.querySelector(".onionc");
+    vw.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
+      const o = b.dataset.mode === "onion"; side.hidden = o; onion.hidden = !o; oc.hidden = !o;
+      vw.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", x === b)); });
     const r = vw.querySelector("input[type=range]"), top = vw.querySelector("img.top");
     if (r && top) r.oninput = () => top.style.opacity = r.value / 100;
   });
+  wireCommon(m);
+}
+function gotoMap(id){
+  const i = BYID[id]; state.tab = "map"; state.mapView = i.view; render();
+  const p = document.getElementById("p-" + id);
+  if (p) { p.scrollIntoView({block: "center", behavior: "smooth"}); p.classList.add("pulse"); setTimeout(() => p.classList.remove("pulse"), 2600); }
 }
 
+// ---------- copy
 function renderCopy(m){
-  if (!D.copy_rows.length){ m.innerHTML = `<div class="empty">No copy doc was given for this run.</div>`; return; }
-  const lbl = {ok:["OK","ok"],punctuation:["Punctuation","low"],diff:["Different","medium"],missing:["Missing","high"]};
-  m.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Status</th><th>Copy doc</th><th>Live page</th></tr></thead><tbody>` +
-    D.copy_rows.map(r => `<tr><td><span class="sev" style="color:var(--${lbl[r.status][1]})">${lbl[r.status][0]}</span></td>
-      <td>${esc(r.doc)}</td><td>${esc(r.live) || '<span class="cat">not found</span>'}</td></tr>`).join("") + `</tbody></table></div>`;
+  const R = D.copy_rows;
+  if (!R.length) { m.innerHTML = `<div class="empty">No copy doc was given for this run.</div>`; return; }
+  const roles = [...new Set(R.map(r => r.role))];
+  const cnt = (list, s) => list.filter(r => r.status === s).length;
+  const cards = roles.map(ro => { const l = R.filter(r => r.role === ro);
+    const seg = s => cnt(l, s) / l.length * 100;
+    return `<button class="rolec" data-role="${ro}" aria-pressed="${state.copyRole === ro}"><div class="rn">${esc(D.roles[ro] || ro)}</div>
+      <div class="rs">${cnt(l, "ok")} of ${l.length} OK${cnt(l, "missing") ? ` · ${cnt(l, "missing")} missing` : ""}${cnt(l, "diff") ? ` · ${cnt(l, "diff")} different` : ""}</div>
+      <div class="bar"><i style="width:${seg("ok")}%;background:var(--solved)"></i><i style="width:${seg("punctuation")}%;background:var(--low)"></i><i style="width:${seg("diff")}%;background:var(--medium)"></i><i style="width:${seg("missing")}%;background:var(--high)"></i></div></button>`; }).join("");
+  const list = R.filter(r => (!state.copyRole || r.role === state.copyRole) && (!state.copyStatus || r.status === state.copyStatus));
+  let lastSec = null;
+  const rows = list.map(r => {
+    const head = r.doc_loc.section !== lastSec ? `<div class="grp">DOC SECTION · ${esc(r.doc_loc.section).toUpperCase()}</div>` : "";
+    lastSec = r.doc_loc.section;
+    const iss = (r.issues || []).map(id => BYID[id]).filter(Boolean);
+    const diffIss = iss.find(i => i.diff);
+    const th = iss.find(i => i.thumb);
+    return head + `<div class="crow"><div><span class="badge">${esc(D.roles[r.role] || r.role)}</span><div class="st-${r.status}" style="font-weight:650;font-size:12.5px;margin-top:5px">${COPY_ST[r.status]}</div>
+        <div class="muted" style="font-size:12px">doc line ${r.doc_loc.line}</div></div>
+      <div class="ctext"><span class="lab">Copy doc</span>${esc(r.doc)}
+        ${r.status === "ok" ? "" : diffIss ? `<span class="lab" style="margin-top:6px">Difference</span>${diffIss.diff}` :
+          r.live ? `<span class="lab" style="margin-top:6px">Live</span>${esc(r.live)}` :
+          `<span class="lab" style="margin-top:6px">Live</span><span class="muted">Not found on the page${r.closest ? ` · closest: “${esc(r.closest)}”` : ""}</span>`}
+        ${r.loc ? crumb(r.loc, "On site") : ""}
+        ${(r.notes || []).length ? `<div class="muted" style="font-size:12.5px;margin-top:4px">Note: ${esc(r.notes.join(" · "))}</div>` : ""}
+        ${iss.map(i => `<button class="linkbtn" data-goto="${i.id}">Issue #${i.n} · ${STATUS[statusOf(i.id)]}</button>`).join(" ")}
+      </div>
+      <div>${th ? thumbImg(th.thumb, "Live page") : ""}</div></div>`;
+  }).join("");
+  m.innerHTML = `<p class="intro">Every line of the copy doc, sorted by what it is on the page (title, subtitle, paragraph, section tag, item tag, button, stat). Click a type to filter. Lines the doc marks as notes or references are in the Reference text tab.</p>
+    <div class="roles">${cards}</div>
+    <div class="vt">${["", ...Object.keys(COPY_ST)].map(s => `<button class="chip" data-cs="${s}" aria-pressed="${(state.copyStatus || "") === s}">${s ? COPY_ST[s] : "All"} <span class="c">${s ? cnt(R.filter(r => !state.copyRole || r.role === state.copyRole), s) : R.filter(r => !state.copyRole || r.role === state.copyRole).length}</span></button>`).join("")}</div>
+    ${rows || `<div class="empty">Nothing matches.</div>`}`;
+  m.querySelectorAll(".rolec").forEach(b => b.onclick = () => { state.copyRole = state.copyRole === b.dataset.role ? null : b.dataset.role; render(); });
+  m.querySelectorAll("[data-cs]").forEach(b => b.onclick = () => { state.copyStatus = b.dataset.cs || null; render(); });
+  wireCommon(m);
 }
 
+// ---------- reference text
+function renderRefs(m){
+  const R = D.ref_rows;
+  if (!R.length) { m.innerHTML = `<div class="empty">${D.doc ? "No reference-only text found in the doc." : "No copy doc was given for this run."}</div>`; return; }
+  const found = R.filter(r => r.found && r.issue).length;
+  m.innerHTML = `<p class="intro">Text in the copy doc that is a note, instruction, section name or removed copy — it should <b>not</b> appear on the site. Detected by labels (Note:, Image:, Link:…), brackets, strikethrough, gray text, section names and note columns in tables. ${found ? `<b class="s-high">${found} of these are showing on the site.</b>` : "None of them are showing on the site."}</p>
+    <div class="tbl"><table class="t"><thead><tr><th>On site?</th><th>Doc text</th><th>Why it's reference</th><th>Doc location</th></tr></thead><tbody>${
+    R.map(r => `<tr><td>${r.found ? (r.issue ? `<span class="sev s-high">Showing</span><br><button class="linkbtn" data-goto="${r.issue}">Issue #${(BYID[r.issue] || {}).n}</button>` : `<span class="sev s-low">Also on site</span><div class="muted" style="font-size:12px">${esc(r.note || "")}</div>`) : `<span class="sev" style="color:var(--solved)">Not on site</span>`}</td>
+      <td>${esc(r.doc)}</td><td class="muted">${esc(r.reason)}</td><td class="muted">${esc(r.doc_loc.section)} · line ${r.doc_loc.line}</td></tr>`).join("")}</tbody></table></div>`;
+  wireCommon(m);
+}
+
+// ---------- links
 function renderLinks(m){
-  if (!D.links.length){ m.innerHTML = `<div class="empty">No external links found.</div>`; return; }
-  m.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Status</th><th>URL</th><th>Used by</th></tr></thead><tbody>` +
-    D.links.map(l => { const ok = typeof l.status === "number" && l.status < 400;
-      return `<tr><td><span class="sev" style="color:var(--${ok ? "ok" : (l.status===999||l.status===429 ? "info" : "high")})">${esc(l.status)}</span></td>
-      <td class="mono"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>${l.final && l.final !== l.url ? `<div class="cat">→ ${esc(l.final)}</div>` : ""}</td>
-      <td>${esc(l.labels)}</td></tr>`; }).join("") + `</tbody></table></div>`;
+  if (!D.links.length) { m.innerHTML = `<div class="empty">No links found.</div>`; return; }
+  m.innerHTML = `<p class="intro">Every unique link on the page and what it returned. Buttons without a destination are in Issues › Links & buttons.</p>
+    <div class="tbl"><table class="t"><thead><tr><th>Status</th><th>URL</th><th>Link text</th></tr></thead><tbody>${
+    D.links.map(l => { const ok = typeof l.status === "number" && l.status < 400; const blk = l.status === 999 || l.status === 429;
+      return `<tr><td><span class="sev" style="color:var(--${ok ? "solved" : blk ? "info" : "high"})">${esc(l.status)}</span></td>
+      <td class="mono"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>${l.final && l.final !== l.url ? `<div class="muted">→ ${esc(l.final)}</div>` : ""}</td>
+      <td>${esc(l.labels)}</td></tr>`; }).join("")}</tbody></table></div>`;
 }
 
+// ---------- dialogs, toast
+function openDlg(t, html){ $("#dlgT").textContent = t; $("#dlgB").innerHTML = html; $("#dlg").showModal(); }
+$("#dlgX").onclick = () => $("#dlg").close();
+$("#dlg").addEventListener("click", e => { if (e.target === $("#dlg")) $("#dlg").close(); });
+function toast(msg){ const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; t.setAttribute("role", "status");
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+
+// ---------- save / export / import
+$("#bSave").onclick = () => {
+  const json = JSON.stringify(TRACK).replace(/</g, "\\u003c");
+  const out = PRISTINE.replace(/(<script id="qa-track" type="application\/json">)[\s\S]*?(<\/script>)/, (_, a, b) => a + json + b);
+  const slug = path.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 60);
+  const day = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([out], {type: "text/html"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `site-qa-${slug}-${day}.html`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  dirty = false; updateSaveBtn(); toast("Report saved with your progress. Open the downloaded file next time.");
+};
+$("#bCsv").onclick = () => {
+  const cols = ["#", "Status", "Severity", "Area", "Issue", "View", "Section", "Element", "Px from top", "Expected / doc", "Live", "Note"];
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = ISS.map(i => [i.n, STATUS[statusOf(i.id)], i.severity, D.categories[i.category], i.title, i.view || "", (i.loc||{}).section || "",
+    (i.loc||{}).element || "", (i.loc||{}).y ?? "", i.expected || i.text || "", i.actual || "", (TRACK[i.id]||{}).n || ""].map(q).join(","));
+  const blob = new Blob(["\ufeff" + [cols.map(q).join(","), ...rows].join("\n")], {type: "text/csv"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `site-qa-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+$("#bImport").onclick = () => $("#fImport").click();
+$("#fImport").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const txt = rd.result;
+    const m = txt.match(/<script id="qa-track" type="application\/json">([\s\S]*?)<\/script>/);
+    if (!m) { toast("That file isn't a Site QA report."); return; }
+    let old = {}; try { old = JSON.parse(m[1]); } catch(err) { toast("Couldn't read progress from that file."); return; }
+    let applied = 0;
+    for (const [id, v] of Object.entries(old)) if (BYID[id] && (!TRACK[id] || (v.t || 0) > (TRACK[id].t || 0))) { TRACK[id] = v; applied++; }
+    let gone = 0;
+    const dm = txt.match(/const D = (\{[\s\S]*?\});\nconst PRISTINE/);
+    if (dm) { try { const od = JSON.parse(dm[1]); gone = od.issues.filter(i => !BYID[i.id]).length; } catch(err) {} }
+    dirty = true; persist(); render(); updateSaveBtn();
+    toast(`Imported ${applied} statuses.${gone ? ` ${gone} issues from that report are no longer detected (likely fixed).` : ""}`);
+  };
+  rd.readAsText(f); e.target.value = "";
+};
+
+// ---------- render
 function render(){
-  renderScore(); renderTabs();
-  const m = document.getElementById("main");
-  ({issues:renderIssues, sections:renderSections, copy:renderCopy, links:renderLinks})[state.tab](m);
+  renderProgress(); renderTabs();
+  const m = $("#main");
+  ({issues: renderIssues, map: renderMap, copy: renderCopy, refs: renderRefs, links: renderLinks})[state.tab](m);
 }
-render();
+render(); updateSaveBtn();
 </script>
 </body>
 </html>
+
