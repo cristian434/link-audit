@@ -30,11 +30,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: site_qa/requirements.txt
+          cache-dependency-path: site-qa/site_qa/requirements.txt
 
       - name: Install
         run: |
-          pip install -r site_qa/requirements.txt
+          pip install -r site-qa/site_qa/requirements.txt
           python -m playwright install --with-deps chromium
 
       - name: Run QA
@@ -46,7 +46,7 @@ jobs:
           FIGMA_MOBILE_URL: ${{ inputs.figma_mobile_url }}
           DOC_URL: ${{ inputs.copy_doc_url }}
         run: |
-          python site_qa/site_qa.py \
+          python site-qa/site_qa/site_qa.py \
             --site "$SITE_URL" \
             --figma "$FIGMA_URL" \
             --figma-mobile "$FIGMA_MOBILE_URL" \
