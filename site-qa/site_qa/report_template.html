@@ -218,10 +218,12 @@ const STATUS = {open:"Open", solved:"Solved", confirm:"Needs confirmation", wont
 const COPY_ST = {ok:"OK", punctuation:"Punctuation", diff:"Different", missing:"Missing"};
 const HINTS = {
   fig_text_missing:"Add this text to the page, or confirm it was removed from the design on purpose.",
+  fig_text_moved:"The text exists but in another section of the page. Move it to the section shown in Figma, or confirm the new order.",
+  copy_wrong_section:"The copy is on the page but under a different section than in the doc. Move it, or confirm the doc's order changed.",
   fig_text_diff:"Update the text in Webflow to match Figma, unless the copy doc says otherwise (the doc wins).",
   style:"In Webflow, select the element (click the grey selector to copy it) and set the Figma values shown in the table.",
   hidden_on_load:"Usually fine for accordions, tabs and sliders. Open it on the page and check it appears after clicking or scrolling.",
-  section_missing:"This whole section of the design wasn't found. Check it exists on the page or was moved / renamed.",
+  section_missing:"None of this section's texts were found on the page, so it was placed by position. Check the section exists, or whether its copy changed completely.",
   section_height:"Compare paddings, margins and gaps with Figma using the Overlay in Page map.",
   section_visual:"Open Page map and use the Overlay slider to spot what moved or changed.",
   video_missing:"Add the video from the design to this section, or confirm it's replaced by an image on purpose.",
@@ -488,6 +490,7 @@ function renderMap(m){
       const sim = s.similarity == null ? "" : `<span class="meta">Visual match <b class="${s.similarity < 55 ? "s-high" : s.similarity < 70 ? "s-medium" : ""}" style="${s.similarity >= 70 ? "color:var(--solved)" : ""}">${s.similarity}%</b></span>`;
       const n = s.live_top == null ? 0 : ISS.filter(i => i.view === v.tag && i.box && i.box.y >= s.live_top && i.box.y < s.live_top + (s.live_shown_h || 0)).length;
       return `<div class="sec" id="sec-${v.tag}-${k}"><div class="sec-h"><h3>${k + 1}. ${esc(s.label)}</h3>
+        <span class="meta">↔ Live ${(s.live_idxs || []).length ? `section ${s.live_idxs.map(x => x + 1).join(" + ")}: ` : ""}“${esc(s.live_label || "")}”${s.anchored || k === 0 ? "" : ` <b class="s-medium">· placed by position, no matching text</b>`}</span>
         <span class="meta">Figma ${s.figma_h}px · Live ${s.live_h ?? "—"}px</span>${sim}
         ${n ? `<span class="meta">${n} issue${n > 1 ? "s" : ""} pinned</span>` : ""}</div>
         ${s.live_img ? `<div class="viewer">
@@ -506,8 +509,11 @@ function renderMap(m){
       <div class="viewer"><div class="pinbox" style="max-width:700px">
       <img src="${v.live_full}" alt="Live ${esc(v.tag)} page">${pinsFor(v.tag, 0, v.live_shown_h, v.width)}</div></div></div>`;
   }
+  const maptbl = v.sections && v.sections.length ? `<details style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:600">How Figma sections were matched to the live page</summary>
+    <div class="tbl" style="margin-top:8px"><table class="t"><thead><tr><th>#</th><th>Figma section</th><th>Live section</th><th>Live position</th><th>Matched by</th></tr></thead><tbody>${
+    v.sections.map((s, k) => `<tr><td>${k + 1}</td><td>${esc(s.label)}</td><td>${(s.live_idxs || []).length ? `Section ${s.live_idxs.map(x => x + 1).join(" + ")}: ` : ""}${esc(s.live_label || "")}</td><td>${(s.live_top ?? 0).toLocaleString()}–${((s.live_top ?? 0) + (s.live_h ?? 0)).toLocaleString()}px</td><td>${k === 0 ? "top of page" : s.anchored ? "matching text" : `<span class="s-medium">position only</span>`}</td></tr>`).join("")}</tbody></table></div></details>` : "";
   m.innerHTML = `<p class="intro">Each section of the design next to the same part of the live page. Numbered pins mark issues at their exact spot — click one to open it. Use Overlay to fade Figma over the live page.</p>
-    <div class="vt">${views.map(x => `<button class="chip" data-v="${x.tag}" aria-pressed="${x.tag === state.mapView}">${x.tag} · ${x.width}px</button>`).join("")}</div>${body}`;
+    <div class="vt">${views.map(x => `<button class="chip" data-v="${x.tag}" aria-pressed="${x.tag === state.mapView}">${x.tag} · ${x.width}px</button>`).join("")}</div>${maptbl}${body}`;
   m.querySelectorAll(".vt .chip").forEach(b => b.onclick = () => { state.mapView = b.dataset.v; render(); });
   m.querySelectorAll(".viewer").forEach(vw => {
     const side = vw.querySelector(".side"), onion = vw.querySelector(".onion"), oc = vw.querySelector(".onionc");
@@ -539,7 +545,7 @@ function renderCopy(m){
   const list = R.filter(r => (!state.copyRole || r.role === state.copyRole) && (!state.copyStatus || r.status === state.copyStatus));
   let lastSec = null;
   const rows = list.map(r => {
-    const head = r.doc_loc.section !== lastSec ? `<div class="grp">DOC SECTION · ${esc(r.doc_loc.section).toUpperCase()}</div>` : "";
+    const head = r.doc_loc.section !== lastSec ? `<div class="grp">DOC SECTION · ${esc(r.doc_loc.section).toUpperCase()} <span style="font-weight:500;letter-spacing:0">→ compared with live ${esc(r.sec_map || "page")}</span></div>` : "";
     lastSec = r.doc_loc.section;
     const iss = (r.issues || []).map(id => BYID[id]).filter(Boolean);
     const diffIss = iss.find(i => i.diff);
