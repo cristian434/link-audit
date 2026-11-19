@@ -466,11 +466,85 @@ def similarity(a, b):
 
 
 # ----------------------------------------------------------------------------- Design comparison
+def live_section_at(live, y):
+    """The DOM section of the live page that contains page position y."""
+    for i, sec in enumerate(live.get("sections", [])):
+        if sec["y"] <= y < sec["y"] + sec["h"]:
+            return i, sec["label"]
+    return -1, "Page"
+
+
+def align_sections(fig, live, scale):
+    """Finds where each Figma section starts on the live page, in order (top to bottom).
+    Uses the longest / biggest texts of each section as anchors, only searching below the previous section."""
+    secs = fig["sections"]
+    vis = [t for t in live["texts"] if t["visible"] and len(t["text"]) >= 6]
+    tops, anchor_txt = [None] * len(secs), [None] * len(secs)
+    prev = -1
+    for s in secs:
+        if s["idx"] == 0:
+            tops[0] = 0
+            prev = 0
+            continue
+        cands = sorted([t for t in fig["texts"] if t["section"] == s["idx"] and len(t["text"]) >= 8],
+                       key=lambda t: (-min(len(t["text"]), 60) * t["size"]))
+        for ft in cands[:10]:
+            nt = norm(ft["text"], True)
+            best, bs = None, 0
+            for lt in vis:
+                if lt["y"] <= prev:
+                    continue
+                sc = fuzz.ratio(nt, norm(lt["text"], True))
+                if sc > bs:
+                    best, bs = lt, sc
+            if best is not None and bs >= 90:
+                est = best["y"] - (ft["y"] - s["y"]) * scale
+                di = best.get("sec", -1)
+                dsecs = live.get("sections", [])
+                # snap to the real start of the live section block that holds the anchor, when that makes sense
+                if 0 <= di < len(dsecs) and dsecs[di]["y"] > prev and abs(dsecs[di]["y"] - est) < max(300, s["h"] * scale):
+                    est = dsecs[di]["y"]
+                tops[s["idx"]] = max(prev + 1, est)
+                anchor_txt[s["idx"]] = ft["text"]
+                prev = tops[s["idx"]]
+                break
+    # sections without an anchor: place them between their neighbours, proportional to the design
+    page_h = live.get("pageHeight") or (secs[-1]["y"] + secs[-1]["h"]) * scale
+    for i, t in enumerate(tops):
+        if t is not None:
+            continue
+        a = max((j for j in range(i) if tops[j] is not None), default=None)
+        b = min((j for j in range(i + 1, len(tops)) if tops[j] is not None), default=None)
+        ya = tops[a] if a is not None else 0
+        fa = secs[a]["y"] if a is not None else 0
+        yb = tops[b] if b is not None else page_h
+        fb = secs[b]["y"] if b is not None else (secs[-1]["y"] + secs[-1]["h"])
+        k = (yb - ya) / max(1, fb - fa)
+        tops[i] = ya + (secs[i]["y"] - fa) * k
+    ranges = []
+    for i, t in enumerate(tops):
+        bottom = tops[i + 1] if i + 1 < len(tops) else page_h
+        ranges.append((t, max(bottom, t + 40)))
+    return ranges, [a is not None for a in anchor_txt]
+
+
 def compare_design(fig, live, view, shots, iss):
     lname, fname = f"live_{view}", f"figma_{view}"
-    cands = [t for t in live["texts"] if len(t["text"]) >= 2]
-    matches = {}
     scale = live["width"] / fig["w"]
+    ranges, anchored = align_sections(fig, live, scale)
+    cands = [t for t in live["texts"] if len(t["text"]) >= 2]
+    secmap = {}
+    dsecs = live.get("sections", [])
+    for s in fig["sections"]:
+        top, bottom = ranges[s["idx"]]
+        covered = [i for i, d in enumerate(dsecs)
+                   if min(bottom, d["y"] + d["h"]) - max(top, d["y"]) > min(d["h"], bottom - top) * 0.4]
+        if not covered:
+            li, ll = live_section_at(live, top + 20)
+            covered = [li] if li >= 0 else []
+        secmap[s["idx"]] = {"top": top, "bottom": bottom, "live_idx": covered[0] if covered else -1,
+                            "live_label": " + ".join(f"{dsecs[i]['label']}" for i in covered) or "Page",
+                            "live_idxs": covered}
 
     def fbox(t):
         return {"x": t["x"], "y": t["y"], "w": t["w"], "h": t["h"]}
@@ -480,29 +554,62 @@ def compare_design(fig, live, view, shots, iss):
         return {"view": view, "section": s["label"] if s else "outside sections",
                 "element": f"Figma layer “{t.get('layer') or t['text'][:30]}”", "y": round(t["y"])}
 
+    matches = {}
     for ft in fig["texts"]:
-        best, score = None, 0
+        if ft["section"] is None:
+            continue
+        s = fig["sections"][ft["section"]]
+        top, bottom = ranges[ft["section"]]
+        expected_y = top + (ft["y"] - s["y"]) * scale
+        span = max(150.0, bottom - top)
+        nt = norm(ft["text"], True)
+        best, score = None, -1
         for lt in cands:
-            sc = fuzz.ratio(norm(ft["text"], True), norm(lt["text"], True))
-            if sc > score or (sc == score and best and lt["visible"] and not best["visible"]):
+            if not (top - 40 <= lt["y"] < bottom + 40):
+                continue
+            sc = fuzz.ratio(nt, norm(lt["text"], True))
+            if sc < MATCH_DIFF - 10:
+                continue
+            # prefer the element closest to where the design puts it inside the section
+            sc -= min(12.0, abs(lt["y"] - expected_y) / span * 12)
+            if not lt["visible"]:
+                sc -= 3
+            if sc > score:
                 best, score = lt, sc
-        if score < MATCH_DIFF:
+        raw_score = fuzz.ratio(nt, norm(best["text"], True)) if best is not None else 0
+        if best is None or raw_score < MATCH_DIFF:
+            # not in its section: is it somewhere else on the page?
+            g, gs = None, 0
+            for lt in cands:
+                sc = fuzz.ratio(nt, norm(lt["text"], True))
+                if sc > gs:
+                    g, gs = lt, sc
+            if g is not None and gs >= 92 and len(ft["text"]) >= 12 and g["visible"]:
+                iss.add("design", "medium", "fig_text_moved",
+                        "Text is in a different section on the live page than in Figma",
+                        view=view, loc=live_loc(view, live, g),
+                        expected=f"In Figma section “{s['label']}”",
+                        actual=f"On the live page in “{live_loc(view, live, g)['section']}”", text=ft["text"][:160],
+                        thumb=shots.crop(lname, g), fthumb=shots.crop(fname, fbox(ft)), box=g)
+                continue
             small = ft["size"] < 12
             iss.add("design", "low" if small else "medium", "fig_text_missing",
-                    "Small design text not found on the live page (may be inside an illustration)" if small
-                    else "Design text not found on the live page",
-                    view=view, loc=floc(ft), expected=ft["text"][:200], actual="not found",
+                    "Small design text not found in this section (may be inside an illustration)" if small
+                    else "Design text not found in the matching live section",
+                    view=view, loc=floc(ft), expected=ft["text"][:200],
+                    actual=f"not in live section “{secmap[ft['section']]['live_label']}”",
                     fthumb=shots.crop(fname, fbox(ft)))
             continue
-        matches[ft["id"]] = (best, score)
+        matches[ft["id"]] = (best, raw_score)
         loc = live_loc(view, live, best)
+        loc["figma_section"] = s["label"]
         if not best["visible"]:
-            iss.add("display", "low", "hidden_on_load", "Element is in the page but hidden on load (collapsed, tab, slider or animation)",
-                    view=view, loc=loc, expected=ft["text"][:140], actual="hidden",
-                    fthumb=shots.crop(fname, fbox(ft)))
+            iss.add("display", "low", "hidden_on_load",
+                    "Element is in the page but hidden on load (collapsed, tab, slider or animation)",
+                    view=view, loc=loc, expected=ft["text"][:140], actual="hidden", fthumb=shots.crop(fname, fbox(ft)))
             continue
         thumb, fthumb = shots.crop(lname, best), shots.crop(fname, fbox(ft))
-        if score < MATCH_OK:
+        if raw_score < MATCH_OK:
             iss.add("design", "low", "fig_text_diff", "Text differs from the Figma layout", view=view, loc=loc,
                     expected=ft["text"][:240], actual=best["text"][:240], diff=word_diff(ft["text"], best["text"]),
                     thumb=thumb, fthumb=fthumb, box=best)
@@ -511,60 +618,46 @@ def compare_design(fig, live, view, shots, iss):
             iss.add("style", sev, "style", "Typography / color differs from Figma: " + ", ".join(p["prop"] for p in props),
                     view=view, loc=loc, text=best["text"][:100], props=props, thumb=thumb, fthumb=fthumb, box=best)
 
-    # anchor every Figma section on the live page
     shot = shots.imgs.get(lname)
-    anchors = []
-    for s in fig["sections"]:
-        sec_texts = sorted([t for t in fig["texts"] if t["section"] == s["idx"] and t["id"] in matches
-                            and matches[t["id"]][1] >= MATCH_OK and matches[t["id"]][0]["visible"]],
-                           key=lambda t: -t["size"])
-        if s["idx"] == 0:
-            anchors.append((s, 0))
-        elif sec_texts:
-            t = sec_texts[0]
-            anchors.append((s, max(0, matches[t["id"]][0]["y"] - (t["y"] - s["y"]) * scale)))
-        else:
-            anchors.append((s, None))
     out = []
-    for i, (s, top) in enumerate(anchors):
-        nxt = next((a[1] for a in anchors[i + 1:] if a[1] is not None), None)
+    for s in fig["sections"]:
+        top, bottom = ranges[s["idx"]]
+        live_h = bottom - top
+        m = secmap[s["idx"]]
         entry = {"label": s["label"], "name": s["name"], "idx": s["idx"], "figma_h": round(s["h"]),
-                 "live_h": None, "live_top": None, "similarity": None, "figma_img": None, "live_img": None}
-        sloc = {"view": view, "section": s["label"], "element": f"Figma section “{s['name']}”"}
-        if top is None:
-            iss.add("design", "medium", "section_missing", "Section from Figma could not be found on the live page",
-                    view=view, loc=sloc, expected="Section present in Figma", actual="no matching content",
+                 "live_h": round(live_h), "live_top": round(top), "live_label": m["live_label"],
+                 "live_idx": m["live_idx"], "live_idxs": m["live_idxs"], "anchored": anchored[s["idx"]], "similarity": None,
+                 "figma_img": None, "live_img": None}
+        sloc = {"view": view, "section": s["label"], "element": f"Figma section “{s['name']}” ↔ live “{m['live_label']}”"}
+        if not anchored[s["idx"]] and s["idx"] != 0:
+            iss.add("design", "medium", "section_missing",
+                    "Couldn't find this Figma section's content on the live page (placed by position only)",
+                    view=view, loc=sloc, expected="Section content from Figma", actual="no matching text found",
                     fthumb=shots.crop(fname, {"x": 0, "y": s["y"], "w": fig["w"], "h": s["h"]}, pad=0, max_h=600))
-        else:
-            bottom = nxt if nxt is not None and nxt > top else min(shot.height, top + s["h"] * scale)
-            live_h = bottom - top
-            entry.update(live_h=round(live_h), live_top=round(top))
-            if nxt is not None and abs(live_h - s["h"] * scale) / (s["h"] * scale) > 0.15:
-                iss.add("design", "medium", "section_height",
-                        "Section height differs more than 15% from Figma (spacing or layout)", view=view, loc=sloc,
-                        expected=f"{round(s['h'] * scale)}px", actual=f"{round(live_h)}px")
-            crop = shot.crop((0, int(top), shot.width, int(min(shot.height, top + max(live_h, 40)))))
-            if s.get("png") and os.path.exists(s["png"]):
-                fimg = Image.open(s["png"]).convert("RGB")
-                sim = similarity(fimg, crop)
-                entry["similarity"] = sim
-                entry["figma_img"] = img_b64(fimg)
-                if sim < 70:
-                    iss.add("design", "medium" if sim < 55 else "low", "section_visual",
-                            f"Section looks visually different from Figma ({sim}% match) — compare in Page map",
-                            view=view, loc=sloc)
-            entry["live_img"] = img_b64(crop)
-            f = crop.width / 900 if crop.width > 900 else 1
-            entry["live_shown_h"] = min(crop.height, 2600 * f)
+        elif s["idx"] != len(fig["sections"]) - 1 and abs(live_h - s["h"] * scale) / (s["h"] * scale) > 0.15:
+            iss.add("design", "medium", "section_height",
+                    "Section height differs more than 15% from Figma (spacing or layout)", view=view, loc=sloc,
+                    expected=f"{round(s['h'] * scale)}px", actual=f"{round(live_h)}px")
+        crop = shot.crop((0, int(top), shot.width, int(min(shot.height, top + max(live_h, 40)))))
+        if s.get("png") and os.path.exists(s["png"]):
+            fimg = Image.open(s["png"]).convert("RGB")
+            sim = similarity(fimg, crop)
+            entry["similarity"] = sim
+            entry["figma_img"] = img_b64(fimg)
+            if sim < 70 and anchored[s["idx"]]:
+                iss.add("design", "medium" if sim < 55 else "low", "section_visual",
+                        f"Section looks visually different from Figma ({sim}% match) — compare in Page map",
+                        view=view, loc=sloc)
+        entry["live_img"] = img_b64(crop)
+        f = crop.width / 900 if crop.width > 900 else 1
+        entry["live_shown_h"] = min(crop.height, 2600 * f)
         out.append(entry)
 
     live_media = [m for m in live["media"] if m["visible"] and m["w"] >= 80 and m["h"] >= 80]
-    for i, (s, top) in enumerate(anchors):
-        if top is None:
-            continue
-        nxt = next((a[1] for a in anchors[i + 1:] if a[1] is not None), top + s["h"] * scale)
+    for s in fig["sections"]:
+        top, bottom = ranges[s["idx"]]
         fm = [m for m in fig["media"] if m["section"] == s["idx"]]
-        lm = [m for m in live_media if top <= m["y"] < nxt]
+        lm = [m for m in live_media if top <= m["y"] < bottom]
         sloc = {"view": view, "section": s["label"]}
         for m in fm:
             if m["kind"] == "video" and not any(x["kind"] in ("video", "iframe") for x in lm):
@@ -572,9 +665,8 @@ def compare_design(fig, live, view, shots, iss):
                         view=view, loc={**sloc, "element": f"Figma layer “{m['name']}”"}, expected="video", actual="none",
                         fthumb=shots.crop(fname, m))
         if fm and not lm:
-            iss.add("media", "medium", "images_missing", "Images in the Figma section are missing on the live page",
-                    view=view, loc=sloc, expected=f"{len(fm)} image(s)", actual="0",
-                    fthumb=shots.crop(fname, fm[0]))
+            iss.add("media", "medium", "images_missing", "Images in the Figma section are missing in the live section",
+                    view=view, loc=sloc, expected=f"{len(fm)} image(s)", actual="0", fthumb=shots.crop(fname, fm[0]))
     return out
 
 
@@ -987,14 +1079,26 @@ def compare_copy(copy_lines, refs, live, view, shots, iss, page_url):
             seen.add(k)
             pool.append(c)
     rows, used = [], set()
+    secs = live.get("sections", [])
 
-    def best_match(text, role=None):
+    def sec_label(i):
+        return secs[i]["label"] if 0 <= i < len(secs) else "Page"
+
+    def score_of(nt, c, long_text):
+        sc = max(fuzz.ratio(nt, norm(c["text"], True)), fuzz.ratio(nt, norm(c.get("raw", ""), True)))
+        if long_text and sc < 85:
+            sc = max(sc, fuzz.partial_ratio(nt, norm(c["text"], True)) - 5)
+        return sc
+
+    def best_match(text, role=None, allowed=None, prev_y=None):
         best, score = None, 0
         nt = norm(text, True)
         for c in pool:
-            sc = max(fuzz.ratio(nt, norm(c["text"], True)), fuzz.ratio(nt, norm(c.get("raw", ""), True)))
-            if len(text) > 40 and sc < 85:
-                sc = max(sc, fuzz.partial_ratio(nt, norm(c["text"], True)) - 5)
+            if allowed is not None and c.get("sec", -1) not in allowed:
+                continue
+            sc = score_of(nt, c, len(text) > 40)
+            if sc < 60:
+                continue
             if role and sc >= 75:
                 lr = live_role(c)
                 if role == "button" and lr == "button" or role in ("title", "subtitle") and c.get("htag") \
@@ -1002,23 +1106,79 @@ def compare_copy(copy_lines, refs, live, view, shots, iss, page_url):
                     sc += 3
                 if not c["visible"]:
                     sc -= 2
-                if c.get("chrome") and role not in ("button", "text"):
-                    sc -= 2
+            if prev_y is not None and c["y"] < prev_y - 250:
+                sc -= 6  # keep the doc's reading order inside a section
             if sc > score:
                 best, score = c, sc
         return best, min(score, 100)
 
+    # 1) map every doc section to the live section(s) where most of its copy is
+    groups, order = {}, []
+    for ln in copy_lines:
+        g = ln["loc"]["section"]
+        if g not in groups:
+            groups[g] = []
+            order.append(g)
+        groups[g].append(ln)
+    mapping, prev_idx = {}, -1
+    for g in order:
+        votes = {}
+        for ln in groups[g]:
+            if len(ln["text"]) < 12:
+                continue
+            b, sc = best_match(ln["text"])
+            if b is not None and sc >= 88 and b.get("sec", -1) >= 0:
+                votes[b["sec"]] = votes.get(b["sec"], 0) + min(len(ln["text"]), 80)
+        if not votes:
+            mapping[g] = None
+            continue
+        ahead = {k: v for k, v in votes.items() if k >= prev_idx}
+        pick = ahead or votes
+        top = max(pick, key=pick.get)
+        allowed = {k for k, v in pick.items() if v >= pick[top] * 0.35} | {top}
+        mapping[g] = allowed
+        prev_idx = min(allowed)
+    single = len(order) == 1  # doc without section names: keep reading order across the whole page
+
+    for g in order:
+        allowed = mapping[g]
+        map_label = (" + ".join(f"Section {i + 1}: “{sec_label(i)}”" for i in sorted(allowed))
+                     if allowed else "not matched to a live section")
+        prev_y = None
+        for ln in groups[g]:
+            text, role = ln["text"], ln["role"]
+            best, score = best_match(text, role, allowed, prev_y if (single or allowed) else None)
+            moved = None
+            if (best is None or score < 75) and allowed is not None:
+                gb, gs = best_match(text, role)
+                if gb is not None and gs >= 88:
+                    moved, best, score = gb, gb, gs
+            if best is not None and score >= 75 and not moved:
+                prev_y = best["y"]
+            row_map = map_label
+            ln["_moved"] = moved
+            ln["_map"] = row_map
+            ln["_best"], ln["_score"] = best, score
+
     for ln in copy_lines:
         text, role = ln["text"], ln["role"]
-        best, score = best_match(text, role)
+        best, score, moved = ln["_best"], ln["_score"], ln["_moved"]
         doc_loc = {"view": "Copy doc", "section": ln["loc"]["section"], "element": f"line {ln['loc']['line']}"}
         row = {"doc": text, "role": role, "doc_loc": ln["loc"], "status": "missing", "live": "", "score": round(score),
-               "notes": [], "issues": []}
+               "notes": [], "issues": [], "sec_map": ln["_map"]}
         if best is not None and score >= 75:
             used.add(id(best))
             loc = live_loc(view, live, best)
             row.update(live=best["text"], loc=loc)
             th = shots.crop(lname, best)
+            if moved is not None:
+                row["notes"].append("found in a different section than the doc")
+                i = iss.add("copy", "medium", "copy_wrong_section",
+                            f"{ROLE_NAMES[role]} is in a different section on the site than in the doc",
+                            view=view, loc=loc, expected=f"In doc section “{ln['loc']['section']}” → {ln['_map']}",
+                            actual=f"On the site in Section {loc.get('section_no') or '?'}: “{loc.get('section')}”",
+                            text=best["text"][:160], thumb=th, box=best, extra={"doc_loc": doc_loc, "role": role})
+                row["issues"].append(i["id"]) if i else None
             shown_ok = norm(text) in (norm(best["text"]), norm(best.get("raw", "")))
             loose_ok = norm(text, True) in (norm(best["text"], True), norm(best.get("raw", ""), True))
             if role in ("tag", "item_tag") and norm(text, True) in (norm(best["text"], True), norm(best.get("raw", ""), True)) \
@@ -1069,8 +1229,9 @@ def compare_copy(copy_lines, refs, live, view, shots, iss, page_url):
                 row["notes"].append("section tag uses a big heading tag (SEO)")
         else:
             i = iss.add("copy", "high", "copy_missing", f"{ROLE_NAMES[role]} from the doc is missing on the site",
-                        view=view, loc={"view": view, "section": f"doc: {ln['loc']['section']}"}, expected=text,
-                        actual="not found", extra={"doc_loc": doc_loc, "role": role})
+                        view=view, loc={"view": view, "section": ln["_map"]}, expected=text,
+                        actual=f"not found in the matching live section ({ln['_map']})",
+                        extra={"doc_loc": doc_loc, "role": role})
             row["issues"].append(i["id"]) if i else None
             if best is not None and score >= 55:
                 row["closest"] = best["text"][:200]
@@ -1316,3 +1477,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
